@@ -1,17 +1,16 @@
 from keras.engine.saving import model_from_json
 from keras.models import Sequential
 from keras.layers import Dense, Conv2D, Flatten
-from keras_preprocessing.image import ImageDataGenerator, os
+from keras_preprocessing.image import ImageDataGenerator
 
 
 class CNN:
 
-    USE_EXISTING_MODEL = False
+    USE_EXISTING_MODEL = True
 
     def __init__(self):
         model = self.get_model(self.USE_EXISTING_MODEL)
-        # self.predict_data(model)
-        # TODO: Cut from music sheet
+        self.predict_data(model)
 
     def get_model(self, use_existing_model):
         print("Getting model..")
@@ -33,6 +32,7 @@ class CNN:
 
         loaded_model = model_from_json(loaded_model_json)
         loaded_model.load_weights("model/model_weight.h5")
+        loaded_model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
         print("Loading model is Finished..")
 
         return loaded_model
@@ -51,9 +51,9 @@ class CNN:
     def load_data():
         print("Loading data..")
 
-        image_data_generator = ImageDataGenerator()
-        train_data = image_data_generator.flow_from_directory(
-            directory="data/train/",
+        train_generator = ImageDataGenerator()
+        train_data = train_generator.flow_from_directory(
+            directory="data/train2/",
             batch_size=1,
             class_mode="categorical",
             shuffle=True,
@@ -62,8 +62,9 @@ class CNN:
             target_size=(256, 64)
         )
 
-        validation_data = image_data_generator.flow_from_directory(
-            directory="data/valid/",
+        validation_generator = ImageDataGenerator()
+        validation_data = validation_generator.flow_from_directory(
+            directory="data/valid2/",
             batch_size=1,
             class_mode="categorical",
             shuffle=True,
@@ -91,23 +92,27 @@ class CNN:
         print("Building model..")
         model = Sequential()
 
-        model.add(Conv2D(64, kernel_size=3, activation='relu', input_shape=(256, 64, 1)))
-        model.add(Conv2D(32, kernel_size=3, activation='relu'))
+        # TODO: Pooling & Dropout
+        # TODO: Global Average Pooling
+        # TODO: Batch Normalization
+        # TODO: Decreasing dense. Best: 37%
+        model.add(Conv2D(64, kernel_size=2, activation='relu', input_shape=(256, 64, 1), padding='same'))
         model.add(Flatten())
+        model.add(Dense(13))
+        model.add(Dense(13))
         model.add(Dense(13, activation='softmax'))
         model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
 
+        print(model.summary())
+
+        # TODO: Data Augmentation
+        # TODO: Early Stopping
         model.fit_generator(
             generator=train_data,
             validation_data=validation_data,
-            epochs=50
+            epochs=5,
+            verbose=1
         )
-
-        # TODO: Evaluate
-        # model.evaluate_generator(
-        #     generator=data,
-        #     steps=train_step
-        # )
 
         self.save_model(model)
 
@@ -116,28 +121,43 @@ class CNN:
 
     @staticmethod
     def predict_data(model):
-        image_data_generator = ImageDataGenerator()
-        test_data = image_data_generator.flow_from_directory(
-            directory="data/test/",
+        test_generator = ImageDataGenerator()
+        test_data = test_generator.flow_from_directory(
+            directory="data/test2/",
             batch_size=1,
-            class_mode=None,
+            class_mode="categorical",
             shuffle=False,
             color_mode="grayscale",
             target_size=(256, 64)
         )
 
-        result = model.predict(test_data)
-        print(result)
+        loss, accuracy = model.evaluate_generator(
+            generator=test_data
+        )
 
-        classes = os.listdir("data/train")
-        if ".DS_Store" in classes:
-            classes.remove(".DS_Store")
-            classes = sorted(classes)
+        print(
+            ""
+            "Prediction Loss: %2d\n"
+            "Prediction Accuracy: %2d%%"
+            ""
+            % (loss, accuracy * 100))
 
-        for val in result.argmax(axis=-1):
-            print(classes[val])
+        # Notes:
+        # Untuk predict manual
 
-        print([map(int, classes[x]) for x in result.argmax(axis=-1)])
+        # result = model.predict_generator(
+        #     generator=test_data
+        # )
+
+        # classes = os.listdir("data/train")
+        # if ".DS_Store" in classes:
+        #     classes.remove(".DS_Store")
+        #     classes = sorted(classes)
+        #
+        # for val in result.argmax(axis=-1):
+        #     print(classes[val])
+        #
+        # print([map(int, classes[x]) for x in result.argmax(axis=-1)])
 
 
 if __name__ == "__main__":
